@@ -2,7 +2,8 @@
 from collections import Counter
 from typing import List, Dict
 
-from .task import Task
+from . import utils
+from .task import Task, TaskFlag
 
 MAX_LINE_LENGTH = 123
 
@@ -58,7 +59,7 @@ class Queue:
 
         if verbose:
             print(f'>>> (1/{ntasks}) Run "{self.tasks[0].name}"')
-        success, output = self.tasks[0].function(None, initial_input_data, **kwargs)
+        flag, output = self.tasks[0].function(None, initial_input_data, **kwargs)
         if verbose:
             print('    ...finished <<<')
 
@@ -69,15 +70,28 @@ class Queue:
             if task.has_parents:  # no parents
                 for ptask in task.parents:
                     print(f'_> Try running from "{ptask.name}"')
-                    if ptask.success:
-                        success, output = task.function(ptask.success, ptask.output, **kwargs)
+                    if ptask.flag:
+                        flag, output = task.function(ptask.flag, ptask.output, **kwargs)
                         break
             else:
-                success, output = task.function(success, {}, **kwargs)
+                flag, output = task.function(flag, {}, **kwargs)
             task.output = output
-            task.success = success
+            task.flag = TaskFlag(flag)
             if verbose:
                 print('    ...finished <<<')
 
-            history.append((success, output))
+            history.append((flag, output))
         return history
+
+    def report(self) -> None:
+        """Print report about tasks"""
+        first_column_length = max(len(task.name) for task in self.tasks) + 2
+        print('------------\nQueue report\n------------')
+        for task in self.tasks:
+            if task.flag == TaskFlag.failed:
+                task_str = utils.failtext(task.flag.name)
+            elif task.flag == TaskFlag.succeeded:
+                task_str = utils.oktext(task.flag.name)
+            else:
+                task_str = task.flag.name
+            print(f'{task.name:>{first_column_length}}: {task_str:>10}')

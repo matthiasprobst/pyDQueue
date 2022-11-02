@@ -1,8 +1,17 @@
 """Module containing the task class"""
+
+from enum import Enum
 from itertools import count
 from typing import Callable, Dict, Tuple, Union
 
 task_id = count()
+
+
+class TaskFlag(Enum):
+    """root attribute: data_source_type"""
+    not_started = -1
+    failed = 0
+    succeeded = 1
 
 
 class Task:
@@ -13,11 +22,12 @@ class Task:
         self._name = name
         self.function = function
         self.parents = []
-        self.success = None
+        self.flag = TaskFlag.not_started
         self.output = None
 
-    def __call__(self, parent_success: Union[bool, None], input_data: Dict) -> Tuple[bool, Dict]:
-        return self.function(parent_success, input_data)
+    def __call__(self, parent_success: Union[bool, None], input_data: Dict) -> Tuple[TaskFlag, Dict]:
+        flag, output = self.function(parent_success, input_data)
+        return TaskFlag(flag), output
 
     def __repr__(self) -> str:
         return f'{self.name}'
