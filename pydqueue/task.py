@@ -6,11 +6,11 @@ from itertools import count
 from typing import Callable, Dict, Tuple, Union
 
 task_id = count()
-DATETIME_STR = '%Y-%m-%d %H:%M:%S'
+DATETIME_FMT = '%Y-%m-%d %H:%M:%S'
 
 
 class TaskFlag(Enum):
-    """root attribute: data_source_type"""
+    """Task flag"""
     not_started = -1
     failed = 0
     succeeded = 1
@@ -32,9 +32,9 @@ class Task:
 
     def __call__(self, parent_success: Union[bool, None],
                  input_data: Dict, **kwargs) -> Tuple[TaskFlag, Dict]:
-        self._start_time = datetime.now().strftime(DATETIME_STR)
+        self._start_time = datetime.now().strftime(DATETIME_FMT)
         flag, output = self._function(parent_success, input_data, **kwargs)
-        self._end_time = datetime.now().strftime(DATETIME_STR)
+        self._end_time = datetime.now().strftime(DATETIME_FMT)
         return TaskFlag(flag), output
 
     def __repr__(self) -> str:
