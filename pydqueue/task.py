@@ -1,10 +1,12 @@
 """Module containing the task class"""
 
+from datetime import datetime
 from enum import Enum
 from itertools import count
 from typing import Callable, Dict, Tuple, Union
 
 task_id = count()
+DATETIME_STR = '%Y-%m-%d %H:%M:%S'
 
 
 class TaskFlag(Enum):
@@ -19,18 +21,34 @@ class Task:
 
     def __init__(self, function: Callable, name: str = None):
         self.id = next(task_id)
-        self._name = name
-        self.function = function
         self.parents = []
         self.flag = TaskFlag.not_started
         self.output = None
 
-    def __call__(self, parent_success: Union[bool, None], input_data: Dict) -> Tuple[TaskFlag, Dict]:
-        flag, output = self.function(parent_success, input_data)
+        self._name = name
+        self._function = function
+        self._start_time = None
+        self._end_time = None
+
+    def __call__(self, parent_success: Union[bool, None],
+                 input_data: Dict, **kwargs) -> Tuple[TaskFlag, Dict]:
+        self._start_time = datetime.now().strftime(DATETIME_STR)
+        flag, output = self._function(parent_success, input_data, **kwargs)
+        self._end_time = datetime.now().strftime(DATETIME_STR)
         return TaskFlag(flag), output
 
     def __repr__(self) -> str:
         return f'{self.name}'
+
+    @property
+    def start_time(self) -> str:
+        """Time when task started"""
+        return self._start_time
+
+    @property
+    def end_time(self) -> str:
+        """Time when task finished or crashed"""
+        return self._end_time
 
     @property
     def has_parents(self) -> bool:

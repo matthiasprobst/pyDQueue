@@ -59,7 +59,7 @@ class Queue:
 
         if verbose:
             print(f'>>> (1/{ntasks}) Run "{self.tasks[0].name}"')
-        flag, output = self.tasks[0].function(None, initial_input_data, **kwargs)
+        flag, output = self.tasks[0](None, initial_input_data, **kwargs)
         if verbose:
             print('    ...finished <<<')
 
@@ -71,10 +71,10 @@ class Queue:
                 for ptask in task.parents:
                     print(f'_> Try running from "{ptask.name}"')
                     if ptask.flag:
-                        flag, output = task.function(ptask.flag, ptask.output, **kwargs)
+                        flag, output = task(ptask.flag, ptask.output, **kwargs)
                         break
             else:
-                flag, output = task.function(flag, {}, **kwargs)
+                flag, output = task(flag, {}, **kwargs)
             task.output = output
             task.flag = TaskFlag(flag)
             if verbose:
@@ -84,7 +84,9 @@ class Queue:
         return history
 
     def report(self) -> None:
-        """Print report about tasks"""
+        """Print report about tasks
+        TODO: add start time and end time as additional columns
+        """
         first_column_length = max(len(task.name) for task in self.tasks) + 2
         print('------------\nQueue report\n------------')
         for task in self.tasks:
@@ -94,4 +96,5 @@ class Queue:
                 task_str = utils.oktext(task.flag.name)
             else:
                 task_str = task.flag.name
-            print(f'{task.name:>{first_column_length}}: {task_str:>10}')
+            print(f'{task.name:>{first_column_length}}: {task_str:<18} '
+                  f'({task.start_time:>} - {task.end_time:>})')

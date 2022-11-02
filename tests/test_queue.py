@@ -55,6 +55,5 @@ class TestQueue(unittest.TestCase):
         q = Queue([A, B, C, D, E])
         print('\n', q)
 
-        q.report()
         q.run({}, verbose=True)
         q.report()
