@@ -55,11 +55,9 @@ class Queue:
 
         history = []
         ntasks = len(self.tasks)
-        ntask_str = len(str(len(self.tasks)))
 
-        ib = 1
         if verbose:
-            print(f'>>> Run "{self.tasks[0].name}"')
+            print(f'>>> (1/{ntasks}) Run "{self.tasks[0].name}"')
         success, output = self.tasks[0].function(None, initial_input_data, **kwargs)
         if verbose:
             print(f'    ...finished <<<')
@@ -67,7 +65,7 @@ class Queue:
         self.tasks[0].output = output
         for ib, b in enumerate(self.tasks):
             if verbose:
-                print(f'>>> ({ib+2}/{ntasks}) Run "{b}"')
+                print(f'>>> ({ib + 1}/{ntasks}) Run "{b}"')
             if b.has_parents:  # no parents
                 for osp in b.parents:  # osp=on_success_parent
                     print(f'_> Try running from "{osp.name}"')
