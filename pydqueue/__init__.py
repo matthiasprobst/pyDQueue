@@ -1,2 +1,3 @@
-from .task import Task
+"""pyDQueue"""
 from .queue import Queue
+from .task import Task

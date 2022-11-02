@@ -9,7 +9,7 @@ class Task:
     """Task class"""
 
     def __init__(self, function: Callable, name: str = None):
-        self._id = next(task_id)
+        self.id = next(task_id)
         self._name = name
         self.function = function
         self.parents = []
@@ -32,7 +32,7 @@ class Task:
         """Return the task name. If self._name is None a name based on the task
         id is generated"""
         if self._name is None:
-            return f'Task{self._id}'
+            return f'Task{self.id}'
         return self._name
 
     def add_parent(self, parent_task: "Task") -> None:
@@ -43,16 +43,16 @@ class Task:
         parent_task: Task
             The task to take as input
         """
-        for p in self.parents:
-            if parent_task == p:
+        for parent in self.parents:
+            if parent_task == parent:
                 raise ValueError(f'Task "{parent_task}" already exists as parent task!')
-        if self._id == parent_task._id:
+        if self.id == parent_task.id:
             raise RuntimeError('Cannot add a task to itself!')
-        if self._id < parent_task._id and parent_task.has_parents:
+        if self.id < parent_task.id and parent_task.has_parents:
             raise RuntimeError('A task added must has no parents or be computed before this task!')
         self.parents.append(parent_task)
 
     def add_parents(self, *parent_tasks: "Task") -> None:
         """Add multiple parent tasks"""
-        for pb in parent_tasks:
-            self.add_parent(pb)
+        for parent_task in parent_tasks:
+            self.add_parent(parent_task)

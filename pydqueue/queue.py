@@ -21,20 +21,20 @@ class Queue:
         _str = ''
         ntasks = self.__len__()
         _nlines = 1
-        for ib, b in enumerate(self.tasks):
-            _str += f'{b.name}('
-            if b.parents is not None:
-                nparents = len(b.parents)
-                for ip, p in enumerate(b.parents):
-                    _str += f'{p.name}'
-                    if 1 < nparents and ip != nparents - 1:
+        for itask, task in enumerate(self.tasks):
+            _str += f'{task.name}('
+            if task.parents is not None:
+                nparents = len(task.parents)
+                for iptask, ptask in enumerate(task.parents):
+                    _str += f'{ptask.name}'
+                    if 1 < nparents and iptask != nparents - 1:
                         _str += ','
-            if ib == ntasks - 1:
+            if itask == ntasks - 1:
                 _str += ')'
             else:
                 _str += ')'
 
-            if ib != ntasks - 1:
+            if itask != ntasks - 1:
                 _str += ' --> '
                 if len(_str) > _nlines * MAX_LINE_LENGTH:
                     _nlines += 1
@@ -44,7 +44,7 @@ class Queue:
 
     def check(self) -> bool:
         """Performs check, if queue is setup correctly"""
-        task_names = [b.name for b in self.tasks if b.name is not None]
+        task_names = [task.name for task in self.tasks if task.name is not None]
         if not all(v == 1 for v in Counter(task_names).values()):
             raise RuntimeError('All tasks must have different names!')
 
@@ -60,25 +60,24 @@ class Queue:
             print(f'>>> (1/{ntasks}) Run "{self.tasks[0].name}"')
         success, output = self.tasks[0].function(None, initial_input_data, **kwargs)
         if verbose:
-            print(f'    ...finished <<<')
+            print('    ...finished <<<')
 
         self.tasks[0].output = output
-        for ib, b in enumerate(self.tasks):
+        for itask, task in enumerate(self.tasks):
             if verbose:
-                print(f'>>> ({ib + 1}/{ntasks}) Run "{b}"')
-            if b.has_parents:  # no parents
-                for osp in b.parents:  # osp=on_success_parent
-                    print(f'_> Try running from "{osp.name}"')
-                    if osp.success:
-                        success, output = b.function(osp.success, osp.output, **kwargs)
+                print(f'>>> ({itask + 1}/{ntasks}) Run "{task}"')
+            if task.has_parents:  # no parents
+                for ptask in task.parents:
+                    print(f'_> Try running from "{ptask.name}"')
+                    if ptask.success:
+                        success, output = task.function(ptask.success, ptask.output, **kwargs)
                         break
             else:
-                success, output = b.function(success, {}, **kwargs)
-            b.output = output
-            b.success = success
+                success, output = task.function(success, {}, **kwargs)
+            task.output = output
+            task.success = success
             if verbose:
-                print(f'    ...finished <<<')
+                print('    ...finished <<<')
 
-            # success, output = b.function(success, output)
             history.append((success, output))
         return history
