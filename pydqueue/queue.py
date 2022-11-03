@@ -64,9 +64,9 @@ class Queue:
             print('    ...finished <<<')
 
         self.tasks[0].output = output
-        for itask, task in enumerate(self.tasks):
+        for itask, task in enumerate(self.tasks[1:]):
             if verbose:
-                print(f'>>> ({itask + 1}/{ntasks}) Run "{task}"')
+                print(f'>>> ({itask + 2}/{ntasks}) Run "{task}"')
             if task.has_parents:  # no parents
                 for ptask in task.parents:
                     print(f'_> Try running from "{ptask.name}"')
