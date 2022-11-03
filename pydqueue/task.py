@@ -14,6 +14,12 @@ class TaskFlag(Enum):
     not_started = -1
     failed = 0
     succeeded = 1
+    error = 2
+    none = 99
+
+
+def get_time():
+    return datetime.now().strftime(DATETIME_FMT)
 
 
 class Task:
@@ -32,10 +38,17 @@ class Task:
 
     def __call__(self, parent_success: Union[bool, None],
                  input_data: Dict, **kwargs) -> Tuple[TaskFlag, Dict]:
-        self._start_time = datetime.now().strftime(DATETIME_FMT)
-        flag, output = self._function(parent_success, input_data, **kwargs)
-        self._end_time = datetime.now().strftime(DATETIME_FMT)
-        return TaskFlag(flag), output
+        self._start_time = get_time()
+        try:
+            flag, output = self._function(parent_success, input_data, **kwargs)
+            err_msg = None
+        except Exception as e:
+            err_msg = e
+            print(err_msg)
+            flag = TaskFlag.error
+            output = {}
+        self._end_time = get_time()
+        return TaskFlag(flag), output, err_msg
 
     def __repr__(self) -> str:
         return f'{self.name}'
@@ -53,7 +66,7 @@ class Task:
     @property
     def has_parents(self) -> bool:
         """If number of parents is unequal to zero"""
-        return len(self.parents)
+        return len(self.parents) > 0
 
     @property
     def name(self) -> str:

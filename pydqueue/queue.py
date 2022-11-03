@@ -1,9 +1,10 @@
 """Module containing the queue class"""
 from collections import Counter
+
 from typing import List, Dict
 
 from . import utils
-from .task import Task, TaskFlag
+from .task import Task, TaskFlag, get_time
 
 MAX_LINE_LENGTH = 123
 
@@ -49,48 +50,59 @@ class Queue:
         if not all(v == 1 for v in Counter(task_names).values()):
             raise RuntimeError('All tasks must have different names!')
 
-    def run(self, initial_input_data: Dict, **kwargs: Dict):
+    def run(self, initial_input_data: Dict = None, **kwargs: Dict):
         """Running the queue"""
+        if initial_input_data is None:
+            initial_input_data = {}
+
         verbose = kwargs.get('verbose', False)
         self.check()
 
         history = []
         ntasks = len(self.tasks)
 
-        if verbose:
-            print(f'>>> (1/{ntasks}) Run "{self.tasks[0].name}"')
-        flag, output = self.tasks[0](None, initial_input_data, **kwargs)
-        if verbose:
-            print('    ...finished <<<')
+        for itask, task in enumerate(self.tasks):
 
-        self.tasks[0].output = output
-        for itask, task in enumerate(self.tasks[1:]):
             if verbose:
-                print(f'>>> ({itask + 2}/{ntasks}) Run "{task}"')
+                print(f'>>> ({itask + 1}/{ntasks}) Run "{task}"')
+
+            if itask == 0:
+                # first task can get initial input data
+                input_data = initial_input_data
+                flag = TaskFlag.none
+            else:
+                input_data = {}
+
+            # part with all tasks after the first one:
             if task.has_parents:  # no parents
+                all_parents_failed = True
                 for ptask in task.parents:
                     print(f'_> Try running from "{ptask.name}"')
-                    if ptask.flag:
-                        flag, output = task(ptask.flag, ptask.output, **kwargs)
-                        break
+                    if ptask.flag == TaskFlag.succeeded:
+                        input_data = ptask.output
+                        flag, output, err_msg = task(ptask.flag, input_data, **kwargs)
+                        all_parents_failed = False
+                if all_parents_failed:
+                    task._start_time = get_time()
+                    task._end_time = get_time()
+                    flag, output = TaskFlag.failed, {}
             else:
-                flag, output = task(flag, {}, **kwargs)
+                flag, output, errmsg = task(flag, input_data, **kwargs)
+
             task.output = output
-            task.flag = TaskFlag(flag)
+            task.flag = flag
             if verbose:
                 print('    ...finished <<<')
 
-            history.append((flag, output))
+            history.append((flag, output, errmsg))
         return history
 
     def report(self) -> None:
-        """Print report about tasks
-        TODO: add start time and end time as additional columns
-        """
+        """Print report about tasks"""
         first_column_length = max(len(task.name) for task in self.tasks) + 2
         print('------------\nQueue report\n------------')
         for task in self.tasks:
-            if task.flag == TaskFlag.failed:
+            if task.flag == TaskFlag.failed or task.flag == TaskFlag.error:
                 task_str = utils.failtext(task.flag.name)
             elif task.flag == TaskFlag.succeeded:
                 task_str = utils.oktext(task.flag.name)

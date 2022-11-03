@@ -100,3 +100,16 @@ class TestQueue(unittest.TestCase):
 
         q.run({}, verbose=True)
         q.report()
+
+    def test_queue_with_errors(self):
+        def random_error(succss, inputdata):
+            rm = random.random()
+            if rm < 0.5:
+                1 / 0  # trigger an error
+                return False, {}  # will not reach this
+            return True, {}
+
+        q = Queue([Task(random_error) for _ in range(10)])
+        q.run({})
+        print(q)
+        q.report()
