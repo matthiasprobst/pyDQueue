@@ -1,9 +1,12 @@
 """Module containing the task class"""
 
+from abc import abstractmethod
 from datetime import datetime
 from enum import Enum
 from itertools import count
-from typing import Callable, Dict, Tuple, Union
+from typing import Callable
+from typing import Dict, Tuple, Union
+
 
 task_id = count()
 DATETIME_FMT = '%Y-%m-%d %H:%M:%S'
@@ -22,19 +25,39 @@ def get_time():
     return datetime.now().strftime(DATETIME_FMT)
 
 
+class TaskCaller:
+
+    def __init__(self, task_specific_data: Dict):
+        self.task_specific_data = task_specific_data
+
+    def __call__(self, flag: Union[bool, None],
+                 input_data: Dict, **kwargs):
+        kwargs.update(input_data)
+        return self.function(
+            flag,
+            input_data,
+            **kwargs
+        )
+
+    @abstractmethod
+    def function(self, flag, input_data, *args, **kwargs):
+        """Function to be overwritten by the user in the subclass"""
+
+
 class Task:
     """Task class"""
 
     def __init__(self, function: Callable, name: str = None):
         self.id = next(task_id)
         self.parents = []
-        self.flag = TaskFlag.not_started
+        self._flag = TaskFlag.not_started
         self.output = None
 
         self._name = name
         self._function = function
         self._start_time = None
         self._end_time = None
+        self._err_msg = None
 
     def __call__(self, parent_success: Union[bool, None],
                  input_data: Dict, **kwargs) -> Tuple[TaskFlag, Dict]:
@@ -44,14 +67,37 @@ class Task:
             err_msg = None
         except Exception as e:
             err_msg = e
-            print(err_msg)
             flag = TaskFlag.error
             output = {}
         self._end_time = get_time()
-        return TaskFlag(flag), output, err_msg
+
+        self.flag = flag
+        self.output = output
+        self._err_msg = err_msg
 
     def __repr__(self) -> str:
-        return f'{self.name}'
+        if self.error_message:
+            return f'{self.name} (flag={self.flag}, err_msg={self.error_message})'
+        return f'{self.name} (flag={self.flag})'
+
+    @property
+    def flag(self) -> TaskFlag:
+        if isinstance(self._flag, int):
+            return TaskFlag(self._flag)
+        return self._flag
+
+    @flag.setter
+    def flag(self, flag: TaskFlag) -> None:
+        if isinstance(flag, int):
+            self._flag = TaskFlag(flag)
+        elif isinstance(flag, TaskFlag):
+            self._flag = flag
+        else:
+            raise TypeError(f'Wrong flag type. Must be "int" or "TaskFlag", not {type(flag)}')
+
+    @property
+    def error_message(self) -> str:
+        return self._err_msg
 
     @property
     def start_time(self) -> str:

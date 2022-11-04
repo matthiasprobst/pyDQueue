@@ -1,18 +1,19 @@
 import pathlib
 import random
 import unittest
+from dataclasses import dataclass
 from typing import Dict, Tuple, Union
 
-from pydqueue import Task, Queue
+from pydqueue import Task, Queue, TaskCaller
 
 
 # simulation function that is the same for all tasks
-def run_simulation(parents_success: Union[bool, None], input_data: Dict,
+def run_simulation(flag: Union[bool, None], input_data: Dict,
                    verbose: bool = False) -> Tuple[bool, Dict]:
     """simulate a simulation. A random variable decides if simulation failes or not"""
 
     if 'result' in input_data:
-        if not parents_success:
+        if not flag:
             input_data['result'] = 0
         if random.random() < 0.5:
             # make simulation fail
@@ -34,25 +35,25 @@ def run_simulation(parents_success: Union[bool, None], input_data: Dict,
 
 # if every task needs additional input, this can be solved using a class
 # then an instance of that class is passed to each task
-class Simulation:
+
+
+@dataclass
+class Simulation(TaskCaller):
     """Object used to create instances for each task"""
+    simulation_filename: pathlib.Path
 
-    def __init__(self, simulation_filename: pathlib.Path):
-        self.simulation_filename = simulation_filename
+    def function(self, flag, input_data, **kwargs):
+        """simulate a simulation. A random variable decides if simulation fails or not"""
 
-    def __call__(self, parents_success: Union[bool, None], input_data: Dict,
-                 verbose: bool = False):
-        return self.run_simulation(parents_success,
-                                   input_data,
-                                   verbose)
+        if self.simulation_filename is None:
+            raise ValueError('Got no simulation filename')
 
-    def run_simulation(self, parents_success: Union[bool, None], input_data: Dict,
-                       verbose: bool = False) -> Tuple[bool, Dict]:
-        """simulate a simulation. A random variable decides if simulation failes or not"""
-        print(f'filename: {self.simulation_filename}')
+        verbose = kwargs.get('verbose', False)
+        if verbose:
+            print(f'filename: {self.simulation_filename}')
 
         if 'result' in input_data:
-            if not parents_success:
+            if not flag:
                 input_data['result'] = 0
             if random.random() < 0.5:
                 # make simulation fail

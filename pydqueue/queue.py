@@ -1,6 +1,5 @@
 """Module containing the queue class"""
 from collections import Counter
-
 from typing import List, Dict
 
 from . import utils
@@ -61,13 +60,12 @@ class Queue:
         verbose = kwargs.get('verbose', False)
         self.check()
 
-        history = []
         ntasks = len(self.tasks)
 
         for itask, task in enumerate(self.tasks):
 
             if verbose:
-                print(f'>>> ({itask + 1}/{ntasks}) Run "{task}"')
+                print(utils.oktext(utils.make_bold(f'\n>>> ({itask + 1}/{ntasks}) Run "{task}"')))
 
             if itask == 0:
                 # first task can get initial input data
@@ -79,26 +77,23 @@ class Queue:
             # part with all tasks after the first one:
             if task.has_parents:  # no parents
                 all_parents_failed = True
-                for ptask in task.parents:
-                    print(f'_> Try running from "{ptask.name}"')
-                    if ptask.flag == TaskFlag.succeeded:
-                        input_data = ptask.output
-                        flag, output, err_msg = task(ptask.flag, input_data, **kwargs)
+                for parent_task in task.parents:
+                    if verbose:
+                        print(f'_> Try running from "{parent_task.name}"')
+                    if parent_task.flag == TaskFlag.succeeded:
+                        task(parent_task.flag, parent_task.output, **kwargs)
                         all_parents_failed = False
                 if all_parents_failed:
+                    if verbose:
+                        print(f'_> All parents failed for some reason')
+                    flag = TaskFlag.failed
+                    task(flag, input_data, **kwargs)
                     task._start_time = get_time()
-                    task._end_time = get_time()
-                    flag, output = TaskFlag.failed, {}
             else:
-                flag, output, errmsg = task(flag, input_data, **kwargs)
+                task(flag, input_data, **kwargs)
 
-            task.output = output
-            task.flag = flag
             if verbose:
-                print('    ...finished <<<')
-
-            history.append((flag, output, errmsg))
-        return history
+                print(utils.oktext(utils.make_bold('    ...finished <<<')))
 
     def report(self) -> None:
         """Print report about tasks"""
@@ -111,5 +106,9 @@ class Queue:
                 task_str = utils.oktext(task.flag.name)
             else:
                 task_str = task.flag.name
-            print(f'{task.name:>{first_column_length}}: {task_str:<18} '
-                  f'({task.start_time:>} - {task.end_time:>})')
+            if task.error_message is not None:
+                print(f'{task.name:>{first_column_length}}: {task_str:<18} '
+                      f'({task.start_time:>} - {task.end_time:>}) err_msg: {task.error_message}')
+            else:
+                print(f'{task.name:>{first_column_length}}: {task_str:<18} '
+                      f'({task.start_time:>} - {task.end_time:>})')
