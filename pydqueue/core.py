@@ -93,7 +93,9 @@ class Task:
         print(f'task method input: {args}, {kwargs}')
         self._start_time = get_time()
         try:
-            self.flag, self.output = self._task(*args, **kwargs)
+            output = self._task(*args, **kwargs)
+            self.flag = output[0]
+            self.output = output[1:]
             self._err_msg = None
         except Exception as e:
             self._err_msg = e
@@ -226,10 +228,8 @@ class Queue:
         if not all(v == 1 for v in Counter(task_names).values()):
             raise RuntimeError('All tasks must have different names!')
 
-    def run(self, initial=None, **kwargs: Dict):
+    def run(self, *args, **kwargs: Dict):
         """Running the queue"""
-        if initial is None:
-            initial = {}
 
         verbose = kwargs.get('verbose', False)
         self.check()
@@ -254,16 +254,16 @@ class Queue:
                     if verbose:
                         print(f'_> Try running from "{parent_task.name}"')
                     if parent_task.flag == TaskFlag.succeeded:
-                        _task.run(parent_task.flag, **{**parent_task.output, **kwargs})
+                        _task.run(parent_task.flag, *parent_task.output, **kwargs)
                         all_parents_failed = False
                 if all_parents_failed:
                     if verbose:
                         print(f'_> All parents failed for some reason')
                     flag = TaskFlag.failed
-                    _task.run(flag, **{**initial, **kwargs})
+                    _task.run(flag, *args, **kwargs)
                     _task._start_time = get_time()
             else:
-                _task.run(flag, **{**initial, **kwargs})
+                _task.run(flag, *args, **kwargs)
 
             if verbose:
                 print(utils.oktext(utils.make_bold('    ...finished <<<')))
