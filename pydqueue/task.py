@@ -93,6 +93,19 @@ class Task:
             raise RuntimeError('A task added must has no parents or be computed before this task!')
         self.parents.append(parent_task)
 
+    def remove_parent(self, index: int) -> None:
+        """removes parent at index location in list of parents"""
+        self.parents.pop(index)
+
+    def remove_parent_by_name(self, parent_name: str) -> None:
+        """removes parent at index location in list of parents"""
+        for i, parent in self.parents:
+            if parent.name == parent_name:
+                self.parents.pop(i)
+                return
+        raise IndexError(f'Could not find parent with name {parent_name} in list of parents: '
+                         f'{[p.name for p in self.parents]}')
+
     def add_parents(self, *parent_tasks: "Task") -> None:
         """Add multiple parent tasks"""
         for parent_task in parent_tasks:

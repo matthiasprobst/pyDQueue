@@ -113,3 +113,20 @@ class TestQueue(unittest.TestCase):
         q.run({})
         print(q)
         q.report()
+
+    def test_manipuating_taks_in_queue(self):
+        def dummy(flag, data):
+            return 0, {}
+
+        t1 = Task(dummy)
+        t2 = Task(dummy)
+        q = Queue([t1, t2])
+        self.assertEqual(q.__str__(), 'Task0() --> Task1()')
+        self.assertIsInstance(q[0], Task)
+        self.assertIsInstance(q[1], Task)
+        with self.assertRaises(IndexError):
+            q[2]
+        q[1].add_parent(t1)
+        self.assertEqual(q.__str__(), 'Task0() --> Task1(Task0)')
+        q[1].remove_parent(0)
+        self.assertEqual(q.__str__(), 'Task0() --> Task1()')

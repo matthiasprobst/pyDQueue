@@ -44,6 +44,9 @@ class Queue:
 
         return _str
 
+    def __getitem__(self, item) -> Task:
+        return self.tasks[item]
+
     def check(self) -> bool:
         """Performs check, if queue is setup correctly"""
         task_names = [task.name for task in self.tasks if task.name is not None]
