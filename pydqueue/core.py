@@ -1,8 +1,7 @@
 """Core module containin queing and task classes"""
 
-from collections import Counter
-
 import types
+from collections import Counter
 from datetime import datetime
 from enum import Enum
 from itertools import count
@@ -94,17 +93,13 @@ class Task:
         print(f'task method input: {args}, {kwargs}')
         self._start_time = get_time()
         try:
-            flag, output = self._task(*args, **kwargs)
-            err_msg = None
+            self.flag, self.output = self._task(*args, **kwargs)
+            self._err_msg = None
         except Exception as e:
-            err_msg = e
-            flag = TaskFlag.error
-            output = {}
+            self._err_msg = e
+            self.flag = TaskFlag.error
+            self.output = {}
         self._end_time = get_time()
-
-        self.flag = flag
-        self.output = output
-        self._err_msg = err_msg
 
     def add_parent(self, parent_task: "Task") -> None:
         """Add a parent task whichs output is taken for input
@@ -259,16 +254,16 @@ class Queue:
                     if verbose:
                         print(f'_> Try running from "{parent_task.name}"')
                     if parent_task.flag == TaskFlag.succeeded:
-                        _task.run(parent_task.flag, parent_task.output, **kwargs)
+                        _task.run(parent_task.flag, **{**parent_task.output, **kwargs})
                         all_parents_failed = False
                 if all_parents_failed:
                     if verbose:
                         print(f'_> All parents failed for some reason')
                     flag = TaskFlag.failed
-                    _task.run(flag, initial, **kwargs)
+                    _task.run(flag, **{**initial, **kwargs})
                     _task._start_time = get_time()
             else:
-                _task.run(flag, initial, **kwargs)
+                _task.run(flag, **{**initial, **kwargs})
 
             if verbose:
                 print(utils.oktext(utils.make_bold('    ...finished <<<')))
