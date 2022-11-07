@@ -1,7 +1,8 @@
 """Core module containin queing and task classes"""
 
-import types
 from collections import Counter
+
+import types
 from datetime import datetime
 from enum import Enum
 from itertools import count
@@ -41,7 +42,7 @@ class Task:
         self._start_time = None
         self._end_time = None
         self._err_msg = None
-        self._task = obj.task
+        self._run = obj.run
 
     def __repr__(self) -> str:
         if self.error_message:
@@ -50,12 +51,14 @@ class Task:
 
     @property
     def flag(self) -> TaskFlag:
+        """Return the current flag value of the Task"""
         if isinstance(self._flag, int):
             return TaskFlag(self._flag)
         return self._flag
 
     @flag.setter
     def flag(self, flag: TaskFlag) -> None:
+        """Set the current flag of the Task"""
         if isinstance(flag, int):
             self._flag = TaskFlag(flag)
         elif isinstance(flag, TaskFlag):
@@ -64,7 +67,8 @@ class Task:
             raise TypeError(f'Wrong flag type. Must be "int" or "TaskFlag", not {type(flag)}')
 
     @property
-    def error_message(self) -> str:
+    def error_message(self) -> Exception:
+        """Return the error"""
         return self._err_msg
 
     @property
@@ -93,7 +97,7 @@ class Task:
         print(f'task method input: {args}, {kwargs}')
         self._start_time = get_time()
         try:
-            output = self._task(*args, **kwargs)
+            output = self._run(*args, **kwargs)
             self.flag = output[0]
             self.output = output[1:]
             self._err_msg = None
@@ -149,11 +153,11 @@ class TaskDecorator:
         taskobj = self.task(*args, **kwargs)
         task_clsname = taskobj.__class__.__name__
         try:
-            _task_method = callable(taskobj.__getattribute__('task'))
+            _task_method = callable(taskobj.__getattribute__('run'))
         except AttributeError:
-            raise AttributeError(f'Class {self.task.__class__} has no method "task"')
-        if not callable(taskobj.__getattribute__('task')):
-            raise TypeError(f'Task seems not to be a method of {self.task.__class__}')
+            raise AttributeError(f'Class {self.run.__class__} has no method "run"')
+        if not callable(taskobj.__getattribute__('run')):
+            raise TypeError(f'Task seems not to be a method of {self.run.__class__}')
         return Task(taskobj, task_clsname)
 
 
@@ -169,7 +173,7 @@ def task(cls=None) -> TaskDecorator:
         _name = cls.__name__
 
         class _Task:
-            def task(self, *args, **kwargs):
+            def run(self, *args, **kwargs):
                 return cls(*args, **kwargs)
 
         _Task.__name__ = cls.__name__.capitalize()
@@ -281,7 +285,7 @@ class Queue:
                 task_str = _task.flag.name
             if _task.error_message is not None:
                 print(f'{_task.name:>{first_column_length}}: {task_str:<18} '
-                      f'({_task.start_time:>} - {_task.end_time:>}) err_msg: {_task.error_message}')
+                      f'({_task.start_time:>} - {_task.end_time:>}) err: {_task.error_message.__repr__()}')
             else:
                 print(f'{_task.name:>{first_column_length}}: {task_str:<18} '
                       f'({_task.start_time:>} - {_task.end_time:>})')

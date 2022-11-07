@@ -17,7 +17,7 @@ class TestQueue(unittest.TestCase):
             def __init__(self, simulation_filename: Union[str, pathlib.Path]):
                 self.simulation_filename = pathlib.Path(simulation_filename)
 
-            def task(self, flag, input_data, **kwargs):
+            def run(self, flag, input_data, **kwargs):
                 """simulate a simulation. A random variable decides if simulation fails or not"""
 
                 if self.simulation_filename is None:
@@ -91,6 +91,10 @@ class TestQueue(unittest.TestCase):
         q.run({})
         print(q)
         q.report()
+
+        for task in q.tasks:
+            if task.error_message:
+                self.assertIsInstance(task.error_message, Exception)
 
     def test_manipuating_taks_in_queue(self):
         def dummy(flag, data):
