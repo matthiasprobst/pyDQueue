@@ -95,6 +95,7 @@ class Task:
     def run(self, *args, **kwargs):
         """Run the task"""
         print(f'task method input: {args}, {kwargs}')
+        print(self._run)
         self._start_time = get_time()
         try:
             output = self._run(*args, **kwargs)
@@ -139,6 +140,8 @@ class Task:
 
     def add_parents(self, *parent_tasks: "Task") -> None:
         """Add multiple parent tasks"""
+        if len(parent_tasks) == 1 and isinstance(parent_tasks[0], list):
+            parent_tasks = parent_tasks[0]
         for parent_task in parent_tasks:
             self.add_parent(parent_task)
 
@@ -260,6 +263,7 @@ class Queue:
                     if parent_task.flag == TaskFlag.succeeded:
                         _task.run(parent_task.flag, *parent_task.output, **kwargs)
                         all_parents_failed = False
+                        break
                 if all_parents_failed:
                     if verbose:
                         print(f'_> All parents failed for some reason')
@@ -289,3 +293,15 @@ class Queue:
             else:
                 print(f'{_task.name:>{first_column_length}}: {task_str:<18} '
                       f'({_task.start_time:>} - {_task.end_time:>})')
+
+
+class RQueue:
+    """Special Queue "Recursive-Queue" (RQueue) where every task first takes the result
+    from the task before and if that failed it takes the result from the task
+    before that and so on. Using this class avoid defining parent tasks because they are automatically
+    defined. On such use case is the call of CFD simulations of various operation points (e.g. the
+    characteristic curve of a fan). In that case we would start with a simulation that converges or
+    will finish successfully. Next would be a simulation case that is a bit more challenging for the CFD
+    and would best start from the neighbouring operation point. But if that failed the one before that would
+    be taken and so on."""
+    # TODO
