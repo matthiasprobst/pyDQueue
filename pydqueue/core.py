@@ -95,12 +95,11 @@ class Task:
     def run(self, *args, **kwargs):
         """Run the task"""
         print(f'task method input: {args}, {kwargs}')
-        print(self._run)
         self._start_time = get_time()
         try:
             output = self._run(*args, **kwargs)
-            self.flag = output[0]
-            self.output = output[1:]
+            self.flag = output.get('flag')
+            self.output = output
             self._err_msg = None
         except Exception as e:
             self._err_msg = e
@@ -261,14 +260,18 @@ class Queue:
                     if verbose:
                         print(f'_> Try running from "{parent_task.name}"')
                     if parent_task.flag == TaskFlag.succeeded:
-                        _task.run(parent_task.flag, *parent_task.output, **kwargs)
+                        if 'flag' not in parent_task.output:
+                            parent_task['flag'] = parent_task.flag
+                        _task.run(**parent_task.output, **kwargs)
                         all_parents_failed = False
                         break
                 if all_parents_failed:
                     if verbose:
                         print(f'_> All parents failed for some reason')
                     flag = TaskFlag.failed
-                    _task.run(flag, *args, **kwargs)
+                    if 'flag' not in parent_task.output:
+                        kwargs['flag'] = flag
+                    _task.run(**kwargs)
                     _task._start_time = get_time()
             else:
                 _task.run(flag, *args, **kwargs)
