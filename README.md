@@ -1,4 +1,6 @@
-# pyDQueue - dependent queing
+# pyDQueue - dependent queuing
+
+**Note, that this repo is highly experimental and under current development!!!**
 
 A simple queuing system allowing to have dependencies between the tasks.
 
