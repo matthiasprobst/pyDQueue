@@ -1,8 +1,7 @@
 """Core module containin queing and task classes"""
 
-from collections import Counter
-
 import types
+from collections import Counter
 from datetime import datetime
 from enum import Enum
 from itertools import count
@@ -227,6 +226,10 @@ class Queue:
 
     def __getitem__(self, item) -> Task:
         return self.tasks[item]
+
+    def append(self, task: Task) -> None:
+        """append a task"""
+        self.tasks.append(task)
 
     def check(self) -> bool:
         """Performs check, if queue is setup correctly"""
