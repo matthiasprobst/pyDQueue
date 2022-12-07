@@ -107,16 +107,13 @@ class Task:
         self._end_time = get_time()
 
     def add_parent(self, parent_task: "Task") -> None:
-        """Add a parent task whichs output is taken for input
+        """Add a parent task, from which the output is taken for input for this task.
 
         Parameters
         ----------
         parent_task: Task
             The task to take as input
         """
-        for parent in self.parents:
-            if parent_task == parent:
-                raise ValueError(f'Task "{parent_task}" already exists as parent task!')
         if self.id == parent_task.id:
             raise RuntimeError('Cannot add a task to itself!')
         if self.id < parent_task.id and parent_task.has_parents:
