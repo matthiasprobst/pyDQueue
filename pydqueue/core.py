@@ -1,7 +1,8 @@
 """Core module containin queing and task classes"""
 
-import types
 from collections import Counter
+
+import types
 from datetime import datetime
 from enum import Enum
 from itertools import count
@@ -196,17 +197,24 @@ class Queue:
         """Number of tasks"""
         return len(self.tasks)
 
-    def __repr__(self) -> str:
+    def get_infostr(self, use_task_name: bool = False) -> str:
+        """returns queue string"""
         _str = ''
         ntasks = self.__len__()
         _nlines = 1
         for itask, _task in enumerate(self.tasks):
-            _str += f'{_task.name}('
+            if use_task_name:
+                _str += f'{_task.name}('
+            else:
+                _str += f'Task-{itask}('
             if _task.parents is not None:
-                nparents = len(_task.parents)
-                for iptask, ptask in enumerate(_task.parents):
-                    _str += f'{ptask.name}'
-                    if 1 < nparents and iptask != nparents - 1:
+                n_parents = len(_task.parents)
+                for i_ptask, ptask in enumerate(_task.parents):
+                    if use_task_name:
+                        _str += f'{ptask.name}'
+                    else:
+                        _str += f'Task-{i_ptask}'
+                    if 1 < n_parents and i_ptask != n_parents - 1:
                         _str += ','
             if itask == ntasks - 1:
                 _str += ')'
@@ -220,6 +228,13 @@ class Queue:
                     _str += '... \n ... --> '
 
         return _str
+
+    def info(self, use_task_name: bool = False):
+        """prints queue"""
+        print(self.get_infostr(use_task_name))
+
+    def __repr__(self) -> str:
+        return self.get_infostr(use_task_name=True)
 
     def __getitem__(self, item) -> Task:
         return self.tasks[item]

@@ -72,8 +72,11 @@ class TestQueue(unittest.TestCase):
         q = dq.Queue([A, B, C, D, E])
         print('\n', q)
 
+        q.info()
+
         q.run({}, verbose=True)
         q.report()
+
 
     def test_using_function(self):
 
