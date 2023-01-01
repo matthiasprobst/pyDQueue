@@ -249,13 +249,16 @@ class Queue:
         if not all(v == 1 for v in Counter(task_names).values()):
             raise RuntimeError('All tasks must have different names!')
 
-    def run(self, *args, **kwargs: Dict):
+    def run(self, *args, initial: Dict = None, **kwargs: Dict):
         """Running the queue"""
 
         verbose = kwargs.get('verbose', False)
         self.check()
 
         ntasks = len(self.tasks)
+
+        if initial is None:
+            initial = {}
 
         for itask, _task in enumerate(self.tasks):
 
@@ -277,7 +280,7 @@ class Queue:
                     if parent_task.flag == TaskFlag.succeeded:
                         if 'flag' not in parent_task.output:
                             parent_task['flag'] = parent_task.flag
-                        _task.run(**parent_task.output, **kwargs)
+                        _task.run(**parent_task.output, **initial, **kwargs)
                         all_parents_failed = False
                         break
                 if all_parents_failed:
@@ -286,7 +289,7 @@ class Queue:
                     flag = TaskFlag.failed
                     if 'flag' not in parent_task.output:
                         kwargs['flag'] = flag
-                    _task.run(**kwargs)
+                    _task.run(**initial, **kwargs)
                     _task._start_time = get_time()
             else:
                 _task.run(flag, *args, **kwargs)
