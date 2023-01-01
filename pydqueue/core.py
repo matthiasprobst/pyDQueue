@@ -292,7 +292,7 @@ class Queue:
                     _task.run(**initial, **kwargs)
                     _task._start_time = get_time()
             else:
-                _task.run(flag, *args, **kwargs)
+                _task.run(flag, *args, **initial, **kwargs)
 
             if verbose:
                 print(utils.oktext(utils.make_bold('    ...finished <<<')))
