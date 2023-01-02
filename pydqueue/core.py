@@ -37,23 +37,78 @@ def get_time():
 
 class Task:
 
-    def __init__(self, run: Callable, task_clsname, id=None):
-        if id is None:
-            self.id = next(TASK_COUNTER)
-        else:
-            self.id = id
+    def __init__(self, run: Callable, task_clsname):
         self._task_clsname = task_clsname
-        self._name = f'{self._task_clsname}<{self.id}>'
+        self._name = f'{self._task_clsname}'
         self._run = run
 
+        self._flag = TaskFlag.not_started
+        self.output = None
+        self._start_time = None
+        self._end_time = None
+        self._err_msg = None
+
     def __repr__(self) -> str:
-        return f'<{self.name}>'
+        if self.error_message:
+            return f'{self.name} (flag={self.flag}, err_msg={self.error_message})'
+        return f'<{self.name} (flag={self.flag.name})>'
+
+    @property
+    def start_time(self) -> str:
+        """Time when task started"""
+        return self._start_time
+
+    @property
+    def end_time(self) -> str:
+        """Time when task finished or crashed"""
+        return self._end_time
 
     @property
     def name(self) -> str:
         """Return the task name. If self._name is None a name based on the task
         id is generated"""
         return self._name
+
+    @property
+    def flag(self) -> TaskFlag:
+        """Return the current flag value of the Task"""
+        if isinstance(self._flag, int):
+            return TaskFlag(self._flag)
+        return self._flag
+
+    @flag.setter
+    def flag(self, flag: TaskFlag) -> None:
+        """Set the current flag of the Task"""
+        if isinstance(flag, int):
+            self._flag = TaskFlag(flag)
+        elif isinstance(flag, TaskFlag):
+            self._flag = flag
+        else:
+            raise TypeError(f'Wrong flag type. Must be "int" or "TaskFlag", not {type(flag)}')
+
+    @property
+    def error_message(self) -> Exception:
+        """Return the error"""
+        return self._err_msg
+
+    def run(self, *args, **kwargs):
+        """Run the task"""
+        stop_queue_on_error = kwargs.pop('stop_queue_on_error', False)
+        qprint(f'task method input: {kwargs}')
+        self._start_time = get_time()
+        try:
+            output = self._run(*args, **kwargs)
+            # if we come here, the above run succeeded
+            self.flag = TaskFlag.succeeded
+            self.output = output
+            self._err_msg = None
+        except Exception as e:
+            if stop_queue_on_error:
+                raise Exception(e)
+            self._err_msg = e
+            self.flag = TaskFlag.error
+            self.output = {}
+        self._end_time = get_time()
 
     def copy(self):
         return copy.copy(self)
@@ -126,12 +181,10 @@ class Queue:
     """Queue class"""
 
     def __init__(self, tasks: List[Task] = None):
-        global TASK_COUNTER
-        TASK_COUNTER = count()  # reset counter
         if tasks is None:
             self.tasks = []
         else:
-            self.tasks = [QTask(t, self) for t in tasks]
+            self.tasks = [QTask(t, self, it) for it, t in enumerate(tasks)]
 
     def __len__(self) -> int:
         """Number of tasks"""
@@ -155,7 +208,7 @@ class Queue:
                     if use_task_name:
                         _str += f'{ptask.name}'
                     else:
-                        _str += f'Task<{ptask.id}>'
+                        _str += f'Task<{ptask._id}>'
                     if 1 < n_parents and i_ptask != n_parents - 1:
                         _str += ','
             if itask == ntasks - 1:
@@ -183,7 +236,7 @@ class Queue:
 
     def append(self, task: Task) -> None:
         """append a task"""
-        self.tasks.append(QTask(task, self))
+        self.tasks.append(QTask(task, self, _id=len(self.tasks)))
 
     def check(self) -> bool:
         """Performs check, if queue is setup correctly"""
@@ -283,76 +336,18 @@ class Queue:
 class QTask(Task):
     """Wrapper around task available inside a queue class"""
 
-    def __init__(self, _task: Task, _queue: Queue):
-        super().__init__(_task._run, _task._task_clsname, id=_task.id)
+    def __init__(self, _task: Task, _queue: Queue, _id: int):
+        super().__init__(_task._run, _task._task_clsname)
         self.parents = []
-        self._flag = TaskFlag.not_started
-        self.output = None
-        self._start_time = None
-        self._end_time = None
-        self._err_msg = None
         self._queue = _queue
-
-    def __repr__(self) -> str:
-        if self.error_message:
-            return f'{self.name} (flag={self.flag}, err_msg={self.error_message})'
-        return f'<{self.name} (flag={self.flag.name})>'
-
-    @property
-    def flag(self) -> TaskFlag:
-        """Return the current flag value of the Task"""
-        if isinstance(self._flag, int):
-            return TaskFlag(self._flag)
-        return self._flag
-
-    @flag.setter
-    def flag(self, flag: TaskFlag) -> None:
-        """Set the current flag of the Task"""
-        if isinstance(flag, int):
-            self._flag = TaskFlag(flag)
-        elif isinstance(flag, TaskFlag):
-            self._flag = flag
-        else:
-            raise TypeError(f'Wrong flag type. Must be "int" or "TaskFlag", not {type(flag)}')
-
-    @property
-    def error_message(self) -> Exception:
-        """Return the error"""
-        return self._err_msg
-
-    @property
-    def start_time(self) -> str:
-        """Time when task started"""
-        return self._start_time
-
-    @property
-    def end_time(self) -> str:
-        """Time when task finished or crashed"""
-        return self._end_time
+        self._id = _id
+        # overwrite name
+        self._name = f'{self._task_clsname}<{self._id}>'
 
     @property
     def has_parents(self) -> bool:
         """If number of parents is unequal to zero"""
         return len(self.parents) > 0
-
-    def run(self, *args, **kwargs):
-        """Run the task"""
-        stop_queue_on_error = kwargs.pop('stop_queue_on_error', False)
-        qprint(f'task method input: {kwargs}')
-        self._start_time = get_time()
-        try:
-            output = self._run(*args, **kwargs)
-            # if we come here, the above run succeeded
-            self.flag = TaskFlag.succeeded
-            self.output = output
-            self._err_msg = None
-        except Exception as e:
-            if stop_queue_on_error:
-                raise Exception(e)
-            self._err_msg = e
-            self.flag = TaskFlag.error
-            self.output = {}
-        self._end_time = get_time()
 
     def add_parent(self, parent_task: "Task") -> None:
         """Add a parent task, from which the output is taken for input for this task.
@@ -364,9 +359,9 @@ class QTask(Task):
         """
         if parent_task not in self._queue.tasks:
             raise KeyError(f'Task {parent_task} not in queue: {self._queue.tasks}')
-        if self.id == parent_task.id:
+        if self._id == parent_task._id:
             raise RuntimeError('Cannot add a task to itself!')
-        if self.id < parent_task.id and parent_task.has_parents:
+        if self._id < parent_task._id and parent_task.has_parents:
             raise RuntimeError('A task added must has no parents or be computed before this task!')
         self.parents.append(parent_task)
 

@@ -105,13 +105,12 @@ class TestQueue(unittest.TestCase):
         with self.assertRaises(KeyError):
             q[4].add_parents(D, A)
         q[4].add_parents(q[3], q[0])
+
+        print(q.get_infostr())
+        print(q.get_infostr())
+
         self.assertEqual(q.get_infostr(), 'Task<0>() --> Task<1>(Task<0>) --> Task<2>(Task<0>,Task<1>) --> '
                                           'Task<3>(Task<0>) --> Task<4>(Task<3>,Task<0>)')
-
-        # q[1].add_parent(q[0])
-        #
-        # q.run(initial=dict(input_data={}), verbose=True)
-        # q.report()
 
     def test_using_function(self):
 
