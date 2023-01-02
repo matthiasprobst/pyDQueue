@@ -2,6 +2,7 @@
 
 from collections import Counter
 
+import inspect
 import types
 from datetime import datetime
 from enum import Enum
@@ -12,8 +13,12 @@ from . import utils
 
 MAX_LINE_LENGTH = 123
 
-task_id = count()
+TASK_COUNTER = count()
 DATETIME_FMT = '%Y-%m-%d %H:%M:%S'
+
+
+def qprint(string):
+    print(f'<q> {string}')
 
 
 class TaskFlag(Enum):
@@ -31,10 +36,11 @@ def get_time():
 
 
 class Task:
+
     def __init__(self, obj, task_clsname):
-        self.id = next(task_id)
+        self.id = next(TASK_COUNTER)
         self._task_clsname = task_clsname
-        self._name = f'{self._task_clsname}{self.id}'
+        self._name = f'{self._task_clsname}<{self.id}>'
 
         self.parents = []
         self._flag = TaskFlag.not_started
@@ -94,14 +100,18 @@ class Task:
 
     def run(self, *args, **kwargs):
         """Run the task"""
-        print(f'task method input: {args}, {kwargs}')
+        stop_queue_on_error = kwargs.pop('stop_queue_on_error', False)
+        qprint(f'task method input: {kwargs}')
         self._start_time = get_time()
         try:
             output = self._run(*args, **kwargs)
-            self.flag = output.get('flag')
+            # if we come here, the above run succeeded
+            self.flag = TaskFlag.succeeded
             self.output = output
             self._err_msg = None
         except Exception as e:
+            if stop_queue_on_error:
+                raise Exception(e)
             self._err_msg = e
             self.flag = TaskFlag.error
             self.output = {}
@@ -144,9 +154,16 @@ class Task:
 
 class TaskDecorator:
 
-    def __init__(self, task, name):
+    def __init__(self, task, name=None):
         self.task = task
-        self.name = name
+        if name is None:
+            self.name = task.__name__
+        else:
+            self.name = name
+        try:
+            _ = self.task.run
+        except AttributeError:
+            raise AttributeError(f'Class {self.__class__} has no method "run"')
 
     def __call__(self, *args, **kwargs):
         taskobj = self.task(*args, **kwargs)
@@ -154,10 +171,13 @@ class TaskDecorator:
         try:
             _task_method = callable(taskobj.__getattribute__('run'))
         except AttributeError:
-            raise AttributeError(f'Class {self.run.__class__} has no method "run"')
+            raise AttributeError(f'Class {self.__class__} has no method "run"')
         if not callable(taskobj.__getattribute__('run')):
             raise TypeError(f'Task seems not to be a method of {self.run.__class__}')
         return Task(taskobj, task_clsname)
+
+    def __str__(self):
+        return f'<Task "{self.name}">'
 
 
 # wrap Task to allow for deferred calling
@@ -172,11 +192,19 @@ def task(cls=None) -> TaskDecorator:
         _name = cls.__name__
 
         class _Task:
+            def __init__(self, *args, **kwargs):
+                pass
+
             def run(self, *args, **kwargs):
+                if 'verbose' in kwargs:
+                    if 'verbose' not in inspect.getfullargspec(cls).args:
+                        # remove verbose from kwargs
+                        _ = kwargs.pop('verbose', None)
                 return cls(*args, **kwargs)
 
         _Task.__name__ = cls.__name__.capitalize()
-        return TaskDecorator(_Task, cls.__name__.capitalize())
+        return TaskDecorator(_Task,
+                             cls.__name__.capitalize())
 
     if cls is None:
         return wrapper
@@ -190,8 +218,13 @@ def task(cls=None) -> TaskDecorator:
 class Queue:
     """Queue class"""
 
-    def __init__(self, tasks: List[Task]):
-        self.tasks = tasks
+    def __init__(self, tasks: List[Task] = None):
+        global TASK_COUNTER
+        TASK_COUNTER = count()  # reset counter
+        if tasks is None:
+            self.tasks = []
+        else:
+            self.tasks = tasks
 
     def __len__(self) -> int:
         """Number of tasks"""
@@ -201,19 +234,21 @@ class Queue:
         """returns queue string"""
         _str = ''
         ntasks = self.__len__()
+        if ntasks == 0:
+            return '<Empty Queue>'
         _nlines = 1
         for itask, _task in enumerate(self.tasks):
             if use_task_name:
                 _str += f'{_task.name}('
             else:
-                _str += f'Task-{itask}('
+                _str += f'Task<{itask}>('
             if _task.parents is not None:
                 n_parents = len(_task.parents)
                 for i_ptask, ptask in enumerate(_task.parents):
                     if use_task_name:
                         _str += f'{ptask.name}'
                     else:
-                        _str += f'Task-{i_ptask}'
+                        _str += f'Task<{ptask.id}>'
                     if 1 < n_parents and i_ptask != n_parents - 1:
                         _str += ','
             if itask == ntasks - 1:
@@ -249,8 +284,18 @@ class Queue:
         if not all(v == 1 for v in Counter(task_names).values()):
             raise RuntimeError('All tasks must have different names!')
 
-    def run(self, *args, initial: Dict = None, **kwargs: Dict):
-        """Running the queue"""
+    def run(self, *, initial: Dict = None, stop_queue_on_error: bool = False, **kwargs: Dict):
+        """Running the queue. Require keyword arguments.
+
+        Parameters
+        ----------
+        initial: Dict=None
+            Initial keyword arguments to be passed to the first task only
+        stop_queue_on_error: bool=False
+            The default (False) will let the queue run through all tasks. Errors will be
+            registered but will not lead to a stop of the queue. If stop_queue_on_error is
+            True the opposite will happen - the queue will stop on an error.
+        """
 
         verbose = kwargs.get('verbose', False)
         self.check()
@@ -260,10 +305,14 @@ class Queue:
         if initial is None:
             initial = {}
 
+        if verbose:
+            qprint(f'Starting Queue with {ntasks} tasks')
+            qprint(f'Initial keyword arguments: {initial}')
+
         for itask, _task in enumerate(self.tasks):
 
             if verbose:
-                print(utils.oktext(utils.make_bold(f'\n>>> ({itask + 1}/{ntasks}) Run "{_task}"')))
+                qprint(utils.oktext(utils.make_bold(f'\n>>> ({itask + 1}/{ntasks}) Run "{_task}"')))
 
             if itask == 0:
                 # first _task can get initial input data
@@ -276,31 +325,39 @@ class Queue:
                 all_parents_failed = True
                 for parent_task in _task.parents:
                     if verbose:
-                        print(f'_> Try running from "{parent_task.name}"')
+                        qprint(f'Try running from "{parent_task.name}"')
                     if parent_task.flag == TaskFlag.succeeded:
-                        if 'flag' not in parent_task.output:
-                            parent_task['flag'] = parent_task.flag
-                        _task.run(**parent_task.output, **initial, **kwargs)
+                        if isinstance(parent_task.output, dict):
+                            _task.run(**parent_task.output,
+                                      **initial,
+                                      stop_queue_on_error=stop_queue_on_error,
+                                      **kwargs)
+                        else:
+                            _task.run(parent_task.output, **initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
                         all_parents_failed = False
                         break
                 if all_parents_failed:
                     if verbose:
-                        print(f'_> All parents failed for some reason')
+                        qprint(f'_> All parents failed for some reason')
                     flag = TaskFlag.failed
                     if 'flag' not in parent_task.output:
                         kwargs['flag'] = flag
-                    _task.run(**initial, **kwargs)
+                    _task.run(**initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
                     _task._start_time = get_time()
             else:
-                _task.run(flag, *args, **initial, **kwargs)
+                if verbose:
+                    qprint(f'Task {_task} has no parent')
+                _task.run(**initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
 
             if verbose:
-                print(utils.oktext(utils.make_bold('    ...finished <<<')))
+                qprint(utils.oktext(utils.make_bold('    ...finished <<<')))
 
     def report(self) -> None:
         """Print report about tasks"""
         first_column_length = max(len(_task.name) for _task in self.tasks) + 2
-        print('------------\nQueue report\n------------')
+        qprint('------------')
+        qprint('Queue report')
+        qprint('------------')
         for _task in self.tasks:
             if _task.flag == TaskFlag.failed or _task.flag == TaskFlag.error:
                 task_str = utils.failtext(_task.flag.name)
@@ -309,11 +366,11 @@ class Queue:
             else:
                 task_str = _task.flag.name
             if _task.error_message is not None:
-                print(f'{_task.name:>{first_column_length}}: {task_str:<18} '
-                      f'({_task.start_time:>} - {_task.end_time:>}) err: {_task.error_message.__repr__()}')
+                qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
+                       f'({_task.start_time:>} - {_task.end_time:>}) err: {_task.error_message.__repr__()}')
             else:
-                print(f'{_task.name:>{first_column_length}}: {task_str:<18} '
-                      f'({_task.start_time:>} - {_task.end_time:>})')
+                qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
+                       f'({_task.start_time:>} - {_task.end_time:>})')
 
 
 class RQueue:

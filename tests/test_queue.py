@@ -8,6 +8,43 @@ import pydqueue as dq
 
 class TestQueue(unittest.TestCase):
 
+    def test_queue_info(self):
+
+        @dq.task
+        def my_func(input_param: float):
+            """testing func"""
+            print('input: ', input_param)
+            return input_param * 2
+
+        self.assertIsInstance(my_func, dq.core.TaskDecorator)
+        q = dq.Queue()
+
+        self.assertEqual(q.__str__(), "<Empty Queue>")
+        q.info()
+
+        f1 = my_func('one')
+        self.assertIsInstance(f1, dq.core.Task)
+
+        f2 = my_func('two')
+        self.assertIsInstance(f2, dq.core.Task)
+
+        f3 = my_func('three')
+        self.assertIsInstance(f3, dq.core.Task)
+
+        q.append(f1)
+        q.append(f2)
+        q.append(f3)
+
+        self.assertEqual(q.get_infostr(), 'Task<0>() --> Task<1>() --> Task<2>()')
+        q[1].add_parent(q[0])
+        q[2].add_parents(q[1], q[0])
+        self.assertEqual(q.get_infostr(), 'Task<0>() --> Task<1>(Task<0>) --> Task<2>(Task<1>,Task<0>)')
+        self.assertEqual(q.__str__(), 'My_func<0>() --> My_func<1>(My_func<0>) --> My_func<2>(My_func<1>,My_func<0>)')
+
+        q.run(initial=dict(input_param=1), stop_queue_on_error=True, verbose=True)
+
+        q.report()
+
     def test_using_class(self):
 
         @dq.task
@@ -17,7 +54,7 @@ class TestQueue(unittest.TestCase):
             def __init__(self, simulation_filename: Union[str, pathlib.Path]):
                 self.simulation_filename = pathlib.Path(simulation_filename)
 
-            def run(self, flag, input_data, **kwargs):
+            def run(self, input_data, flag=None, **kwargs):
                 """simulate a simulation. A random variable decides if simulation fails or not"""
 
                 if self.simulation_filename is None:
@@ -47,10 +84,13 @@ class TestQueue(unittest.TestCase):
                     print('Simulation succeeded')
                 return True, {'result': 1}
 
+        # initialize the first simulation
         # A has no parent, because it is the initial task
         A = Simulation('one')
 
+        # initialize the second simulation
         B = Simulation('two')
+        # add the first as the parent
         B.add_parent(A)
 
         self.assertNotEqual(A, B)
@@ -74,13 +114,14 @@ class TestQueue(unittest.TestCase):
 
         q.info()
 
-        q.run({}, verbose=True)
-        q.report()
+        q[1].add_parent(q[0])
 
+        q.run(initial=dict(input_data={}), verbose=True)
+        q.report()
 
     def test_using_function(self):
 
-        def randomfun(*args, **kwargs):
+        def randomfun():
             """method MUST take arguments"""
             rm = random.random()
             if rm < 0.5:
@@ -91,7 +132,7 @@ class TestQueue(unittest.TestCase):
         mytask = dq.task(randomfun)
 
         q = dq.Queue([mytask() for _ in range(10)])
-        q.run({})
+        q.run()
         print(q)
         q.report()
 
@@ -108,12 +149,12 @@ class TestQueue(unittest.TestCase):
         t1 = mytask()
         t2 = mytask()
         q = dq.Queue([t1, t2])
-        self.assertEqual(q.__str__(), 'Dummy0() --> Dummy1()')
+        self.assertEqual(q.__str__(), 'Dummy<0>() --> Dummy<1>()')
         self.assertIsInstance(q[0], dq.core.Task)
         self.assertIsInstance(q[1], dq.core.Task)
         with self.assertRaises(IndexError):
             q[2]
         q[1].add_parent(t1)
-        self.assertEqual(q.__str__(), 'Dummy0() --> Dummy1(Dummy0)')
+        self.assertEqual(q.__str__(), 'Dummy<0>() --> Dummy<1>(Dummy<0>)')
         q[1].remove_parent(0)
-        self.assertEqual(q.__str__(), 'Dummy0() --> Dummy1()')
+        self.assertEqual(q.__str__(), 'Dummy<0>() --> Dummy<1>()')
