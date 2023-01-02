@@ -102,7 +102,7 @@ class Task:
         """Return the error"""
         return self._err_msg
 
-    def run(self, *args, **kwargs):
+    def start(self, *args, **kwargs):
         """Run the task"""
         stop_queue_on_error = kwargs.pop('stop_queue_on_error', False)
         qprint(f'task method input: {kwargs}')
@@ -302,12 +302,13 @@ class Queue:
                         qprint(f'Try running from "{parent_task.name}"')
                     if parent_task.flag == TaskFlag.succeeded:
                         if isinstance(parent_task.output, dict):
-                            _task.run(**parent_task.output,
-                                      **initial,
-                                      stop_queue_on_error=stop_queue_on_error,
-                                      **kwargs)
+                            _task.start(**parent_task.output,
+                                        **initial,
+                                        stop_queue_on_error=stop_queue_on_error,
+                                        **kwargs)
                         else:
-                            _task.run(parent_task.output, **initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
+                            _task.start(parent_task.output, **initial, stop_queue_on_error=stop_queue_on_error,
+                                        **kwargs)
                         all_parents_failed = False
                         break
                 if all_parents_failed:
@@ -316,12 +317,12 @@ class Queue:
                     flag = TaskFlag.failed
                     if 'flag' not in parent_task.output:
                         kwargs['flag'] = flag
-                    _task.run(**initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
+                    _task.start(**initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
                     _task._start_time = get_time()
             else:
                 if verbose:
                     qprint(f'Task {_task} has no parent')
-                _task.run(**initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
+                _task.start(**initial, stop_queue_on_error=stop_queue_on_error, **kwargs)
 
             if verbose:
                 qprint(utils.oktext(utils.make_bold('    ...finished <<<')))
