@@ -54,6 +54,9 @@ class TestQueue(unittest.TestCase):
             def __init__(self, simulation_filename: Union[str, pathlib.Path]):
                 self.simulation_filename = pathlib.Path(simulation_filename)
 
+            def info(self):
+                print('Info about the simulation')
+
             def run(self, input_data, nproc: int, flag=None, **kwargs):
                 """simulate a simulation. A random variable decides if simulation fails or not"""
                 assert isinstance(nproc, int)
@@ -86,6 +89,8 @@ class TestQueue(unittest.TestCase):
 
         # initialize the first simulation
         A = Simulation('one')
+        with self.assertRaises(AttributeError):
+            A.info2()
         # initialize the second simulation
         B = Simulation('two')
         C = Simulation('three')

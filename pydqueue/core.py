@@ -36,11 +36,12 @@ def get_time():
 
 
 class Task:
+    """Task class"""
 
-    def __init__(self, run: Callable, task_clsname):
-        self._task_clsname = task_clsname
-        self._name = f'{self._task_clsname}'
-        self._run = run
+    def __init__(self, obj: Callable, task_cls_name):
+        self._task_cls_name = task_cls_name
+        self._name = f'{self._task_cls_name}'
+        self._obj = obj
 
         self._flag = TaskFlag.not_started
         self.output = None
@@ -52,6 +53,16 @@ class Task:
         if self.error_message:
             return f'{self.name} (flag={self.flag}, err_msg={self.error_message})'
         return f'<{self.name} (flag={self.flag.name})>'
+
+    def __getattr__(self, item):
+        try:
+            return self._obj.__getattribute__(item)
+        except AttributeError:
+            try:
+                return self.__dict__[item]
+            except KeyError:
+                raise AttributeError(f"'{self.__class__.__name__}' object and "
+                                     f"'{self._obj.__class__.__name__}' object have no attribute '{item}'")
 
     @property
     def start_time(self) -> str:
@@ -97,7 +108,7 @@ class Task:
         qprint(f'task method input: {kwargs}')
         self._start_time = get_time()
         try:
-            output = self._run(*args, **kwargs)
+            output = self._obj.run(*args, **kwargs)
             # if we come here, the above run succeeded
             self.flag = TaskFlag.succeeded
             self.output = output
@@ -130,14 +141,14 @@ class TaskDecorator:
 
     def __call__(self, *args, **kwargs):
         taskobj = self.task(*args, **kwargs)
-        task_clsname = taskobj.__class__.__name__
+        task_cls_name = taskobj.__class__.__name__
         try:
             _task_method = callable(taskobj.__getattribute__('run'))
         except AttributeError:
             raise AttributeError(f'Class {self.__class__} has no method "run"')
         if not callable(taskobj.__getattribute__('run')):
             raise TypeError(f'Task seems not to be a method of {self.run.__class__}')
-        return Task(taskobj.run, task_clsname)
+        return Task(taskobj, task_cls_name)
 
     def __str__(self):
         return f'<Task "{self.name}">'
@@ -145,7 +156,7 @@ class TaskDecorator:
 
 # wrap Task to allow for deferred calling
 def task(cls=None) -> TaskDecorator:
-    """taskwrapper"""
+    """task wrapper"""
 
     def wrapper(function):
         return TaskDecorator(function, 'Unknown')
@@ -344,12 +355,12 @@ class QTask(Task):
     """Wrapper around task available inside a queue class"""
 
     def __init__(self, _task: Task, _queue: Queue, _id: int):
-        super().__init__(_task._run, _task._task_clsname)
+        super().__init__(_task, _task._task_cls_name)
         self.parents = []
         self._queue = _queue
         self._id = _id
         # overwrite name
-        self._name = f'{self._task_clsname}<{self._id}>'
+        self._name = f'{self._task_cls_name}<{self._id}>'
 
     def reset(self):
         """reset error messages and flags"""
