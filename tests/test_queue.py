@@ -54,9 +54,9 @@ class TestQueue(unittest.TestCase):
             def __init__(self, simulation_filename: Union[str, pathlib.Path]):
                 self.simulation_filename = pathlib.Path(simulation_filename)
 
-            def run(self, input_data, flag=None, **kwargs):
+            def run(self, input_data, nproc: int, flag=None, **kwargs):
                 """simulate a simulation. A random variable decides if simulation fails or not"""
-
+                assert isinstance(nproc, int)
                 if self.simulation_filename is None:
                     raise ValueError('Got no simulation filename')
 
@@ -106,11 +106,11 @@ class TestQueue(unittest.TestCase):
             q[4].add_parents(D, A)
         q[4].add_parents(q[3], q[0])
 
-        print(q.get_infostr())
-        print(q.get_infostr())
-
         self.assertEqual(q.get_infostr(), 'Task<0>() --> Task<1>(Task<0>) --> Task<2>(Task<0>,Task<1>) --> '
                                           'Task<3>(Task<0>) --> Task<4>(Task<3>,Task<0>)')
+
+        q.run(initial=dict(input_data={}), nproc=99999999999, verbose=True)
+        q.report()
 
     def test_using_function(self):
 

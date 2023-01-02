@@ -103,6 +103,7 @@ class Task:
             self.output = output
             self._err_msg = None
         except Exception as e:
+            self._end_time = get_time()
             if stop_queue_on_error:
                 raise Exception(e)
             self._err_msg = e
@@ -256,6 +257,8 @@ class Queue:
             registered but will not lead to a stop of the queue. If stop_queue_on_error is
             True the opposite will happen - the queue will stop on an error.
         """
+        for t in self.tasks:
+            t.reset()
 
         verbose = kwargs.get('verbose', False)
         self.check()
@@ -329,8 +332,12 @@ class Queue:
                 qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
                        f'({_task.start_time:>} - {_task.end_time:>}) err: {_task.error_message.__repr__()}')
             else:
-                qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
-                       f'({_task.start_time:>} - {_task.end_time:>})')
+                if _task.end_time is None:
+                    qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
+                           f'({_task.start_time:>} - <not_finished>)')
+                else:
+                    qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
+                           f'({_task.start_time:>} - {_task.end_time:>})')
 
 
 class QTask(Task):
@@ -343,6 +350,14 @@ class QTask(Task):
         self._id = _id
         # overwrite name
         self._name = f'{self._task_clsname}<{self._id}>'
+
+    def reset(self):
+        """reset error messages and flags"""
+        self._flag = TaskFlag.not_started
+        self.output = None
+        self._start_time = None
+        self._end_time = None
+        self._err_msg = None
 
     @property
     def has_parents(self) -> bool:
