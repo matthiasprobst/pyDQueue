@@ -85,39 +85,33 @@ class TestQueue(unittest.TestCase):
                 return True, {'result': 1}
 
         # initialize the first simulation
-        # A has no parent, because it is the initial task
         A = Simulation('one')
-
         # initialize the second simulation
         B = Simulation('two')
-        # add the first as the parent
-        B.add_parent(A)
-
-        self.assertNotEqual(A, B)
-
-        C = Simulation('two')
-        C.add_parents(B, A)
-
-        D = Simulation('3')
-        D.add_parents(A)
-
+        C = Simulation('three')
+        D = Simulation('four')
         E = Simulation('4')
-        E.add_parents(D, A)
-
-        with self.assertRaises(RuntimeError):
-            D.add_parent(D)
-        with self.assertRaises(RuntimeError):
-            B.add_parent(C)
 
         q = dq.Queue([A, B, C, D, E])
-        print('\n', q)
+        self.assertEqual(q.get_infostr(), 'Task<0>() --> Task<1>() --> Task<2>() --> Task<3>() --> Task<4>()')
 
-        q.info()
-
+        # re-building the queue should not influence the result:
+        q = dq.Queue([A, B, C, D, E])
+        with self.assertRaises(KeyError):
+            q[1].add_parent(A)
         q[1].add_parent(q[0])
+        q[2].add_parents([q[0], q[1]])
+        q[3].add_parent(q[0])
+        with self.assertRaises(KeyError):
+            q[4].add_parents(D, A)
+        q[4].add_parents(q[3], q[0])
+        self.assertEqual(q.get_infostr(), 'Task<0>() --> Task<1>(Task<0>) --> Task<2>(Task<0>,Task<1>) --> '
+                                          'Task<3>(Task<0>) --> Task<4>(Task<3>,Task<0>)')
 
-        q.run(initial=dict(input_data={}), verbose=True)
-        q.report()
+        # q[1].add_parent(q[0])
+        #
+        # q.run(initial=dict(input_data={}), verbose=True)
+        # q.report()
 
     def test_using_function(self):
 
@@ -140,7 +134,7 @@ class TestQueue(unittest.TestCase):
             if task.error_message:
                 self.assertIsInstance(task.error_message, Exception)
 
-    def test_manipuating_taks_in_queue(self):
+    def test_manipulating_tasks_in_queue(self):
         def dummy(flag, data):
             return 0, {}
 
@@ -154,7 +148,9 @@ class TestQueue(unittest.TestCase):
         self.assertIsInstance(q[1], dq.core.Task)
         with self.assertRaises(IndexError):
             q[2]
-        q[1].add_parent(t1)
+        with self.assertRaises(KeyError):
+            q[1].add_parent(t1)
+        q[1].add_parent(q[0])
         self.assertEqual(q.__str__(), 'Dummy<0>() --> Dummy<1>(Dummy<0>)')
         q[1].remove_parent(0)
         self.assertEqual(q.__str__(), 'Dummy<0>() --> Dummy<1>()')

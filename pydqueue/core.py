@@ -1,13 +1,13 @@
 """Core module containin queing and task classes"""
-
 from collections import Counter
 
+import copy
 import inspect
 import types
 from datetime import datetime
 from enum import Enum
 from itertools import count
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 from . import utils
 
@@ -37,60 +37,17 @@ def get_time():
 
 class Task:
 
-    def __init__(self, obj, task_clsname):
-        self.id = next(TASK_COUNTER)
+    def __init__(self, run: Callable, task_clsname, id=None):
+        if id is None:
+            self.id = next(TASK_COUNTER)
+        else:
+            self.id = id
         self._task_clsname = task_clsname
         self._name = f'{self._task_clsname}<{self.id}>'
-
-        self.parents = []
-        self._flag = TaskFlag.not_started
-        self.output = None
-        self._start_time = None
-        self._end_time = None
-        self._err_msg = None
-        self._run = obj.run
+        self._run = run
 
     def __repr__(self) -> str:
-        if self.error_message:
-            return f'{self.name} (flag={self.flag}, err_msg={self.error_message})'
-        return f'<{self.name} (flag={self.flag.name})>'
-
-    @property
-    def flag(self) -> TaskFlag:
-        """Return the current flag value of the Task"""
-        if isinstance(self._flag, int):
-            return TaskFlag(self._flag)
-        return self._flag
-
-    @flag.setter
-    def flag(self, flag: TaskFlag) -> None:
-        """Set the current flag of the Task"""
-        if isinstance(flag, int):
-            self._flag = TaskFlag(flag)
-        elif isinstance(flag, TaskFlag):
-            self._flag = flag
-        else:
-            raise TypeError(f'Wrong flag type. Must be "int" or "TaskFlag", not {type(flag)}')
-
-    @property
-    def error_message(self) -> Exception:
-        """Return the error"""
-        return self._err_msg
-
-    @property
-    def start_time(self) -> str:
-        """Time when task started"""
-        return self._start_time
-
-    @property
-    def end_time(self) -> str:
-        """Time when task finished or crashed"""
-        return self._end_time
-
-    @property
-    def has_parents(self) -> bool:
-        """If number of parents is unequal to zero"""
-        return len(self.parents) > 0
+        return f'<{self.name}>'
 
     @property
     def name(self) -> str:
@@ -98,58 +55,8 @@ class Task:
         id is generated"""
         return self._name
 
-    def run(self, *args, **kwargs):
-        """Run the task"""
-        stop_queue_on_error = kwargs.pop('stop_queue_on_error', False)
-        qprint(f'task method input: {kwargs}')
-        self._start_time = get_time()
-        try:
-            output = self._run(*args, **kwargs)
-            # if we come here, the above run succeeded
-            self.flag = TaskFlag.succeeded
-            self.output = output
-            self._err_msg = None
-        except Exception as e:
-            if stop_queue_on_error:
-                raise Exception(e)
-            self._err_msg = e
-            self.flag = TaskFlag.error
-            self.output = {}
-        self._end_time = get_time()
-
-    def add_parent(self, parent_task: "Task") -> None:
-        """Add a parent task, from which the output is taken for input for this task.
-
-        Parameters
-        ----------
-        parent_task: Task
-            The task to take as input
-        """
-        if self.id == parent_task.id:
-            raise RuntimeError('Cannot add a task to itself!')
-        if self.id < parent_task.id and parent_task.has_parents:
-            raise RuntimeError('A task added must has no parents or be computed before this task!')
-        self.parents.append(parent_task)
-
-    def remove_parent(self, index: int) -> None:
-        """removes parent at index location in list of parents"""
-        self.parents.pop(index)
-
-    def remove_parent_by_name(self, parent_name: str) -> None:
-        """removes parent at index location in list of parents"""
-        for i, parent in self.parents:
-            if parent.name == parent_name:
-                self.parents.pop(i)
-                return
-        raise IndexError(f'Could not find parent with name {parent_name} in list of parents: '
-                         f'{[p.name for p in self.parents]}')
-
-    def add_parents(self, *parent_tasks: "Task") -> None:
-        """Add multiple parent tasks"""
-        if len(parent_tasks) == 1 and isinstance(parent_tasks[0], list):
-            parent_tasks = parent_tasks[0]
-        for parent_task in parent_tasks:
-            self.add_parent(parent_task)
+    def copy(self):
+        return copy.copy(self)
 
 
 class TaskDecorator:
@@ -174,7 +81,7 @@ class TaskDecorator:
             raise AttributeError(f'Class {self.__class__} has no method "run"')
         if not callable(taskobj.__getattribute__('run')):
             raise TypeError(f'Task seems not to be a method of {self.run.__class__}')
-        return Task(taskobj, task_clsname)
+        return Task(taskobj.run, task_clsname)
 
     def __str__(self):
         return f'<Task "{self.name}">'
@@ -224,7 +131,7 @@ class Queue:
         if tasks is None:
             self.tasks = []
         else:
-            self.tasks = tasks
+            self.tasks = [QTask(t, self) for t in tasks]
 
     def __len__(self) -> int:
         """Number of tasks"""
@@ -271,12 +178,12 @@ class Queue:
     def __repr__(self) -> str:
         return self.get_infostr(use_task_name=True)
 
-    def __getitem__(self, item) -> Task:
+    def __getitem__(self, item) -> "QTask":
         return self.tasks[item]
 
     def append(self, task: Task) -> None:
         """append a task"""
-        self.tasks.append(task)
+        self.tasks.append(QTask(task, self))
 
     def check(self) -> bool:
         """Performs check, if queue is setup correctly"""
@@ -371,6 +278,117 @@ class Queue:
             else:
                 qprint(f'{_task.name:>{first_column_length}}: {task_str:<18} '
                        f'({_task.start_time:>} - {_task.end_time:>})')
+
+
+class QTask(Task):
+    """Wrapper around task available inside a queue class"""
+
+    def __init__(self, _task: Task, _queue: Queue):
+        super().__init__(_task._run, _task._task_clsname, id=_task.id)
+        self.parents = []
+        self._flag = TaskFlag.not_started
+        self.output = None
+        self._start_time = None
+        self._end_time = None
+        self._err_msg = None
+        self._queue = _queue
+
+    def __repr__(self) -> str:
+        if self.error_message:
+            return f'{self.name} (flag={self.flag}, err_msg={self.error_message})'
+        return f'<{self.name} (flag={self.flag.name})>'
+
+    @property
+    def flag(self) -> TaskFlag:
+        """Return the current flag value of the Task"""
+        if isinstance(self._flag, int):
+            return TaskFlag(self._flag)
+        return self._flag
+
+    @flag.setter
+    def flag(self, flag: TaskFlag) -> None:
+        """Set the current flag of the Task"""
+        if isinstance(flag, int):
+            self._flag = TaskFlag(flag)
+        elif isinstance(flag, TaskFlag):
+            self._flag = flag
+        else:
+            raise TypeError(f'Wrong flag type. Must be "int" or "TaskFlag", not {type(flag)}')
+
+    @property
+    def error_message(self) -> Exception:
+        """Return the error"""
+        return self._err_msg
+
+    @property
+    def start_time(self) -> str:
+        """Time when task started"""
+        return self._start_time
+
+    @property
+    def end_time(self) -> str:
+        """Time when task finished or crashed"""
+        return self._end_time
+
+    @property
+    def has_parents(self) -> bool:
+        """If number of parents is unequal to zero"""
+        return len(self.parents) > 0
+
+    def run(self, *args, **kwargs):
+        """Run the task"""
+        stop_queue_on_error = kwargs.pop('stop_queue_on_error', False)
+        qprint(f'task method input: {kwargs}')
+        self._start_time = get_time()
+        try:
+            output = self._run(*args, **kwargs)
+            # if we come here, the above run succeeded
+            self.flag = TaskFlag.succeeded
+            self.output = output
+            self._err_msg = None
+        except Exception as e:
+            if stop_queue_on_error:
+                raise Exception(e)
+            self._err_msg = e
+            self.flag = TaskFlag.error
+            self.output = {}
+        self._end_time = get_time()
+
+    def add_parent(self, parent_task: "Task") -> None:
+        """Add a parent task, from which the output is taken for input for this task.
+
+        Parameters
+        ----------
+        parent_task: Task
+            The task to take as input
+        """
+        if parent_task not in self._queue.tasks:
+            raise KeyError(f'Task {parent_task} not in queue: {self._queue.tasks}')
+        if self.id == parent_task.id:
+            raise RuntimeError('Cannot add a task to itself!')
+        if self.id < parent_task.id and parent_task.has_parents:
+            raise RuntimeError('A task added must has no parents or be computed before this task!')
+        self.parents.append(parent_task)
+
+    def remove_parent(self, index: int) -> None:
+        """removes parent at index location in list of parents"""
+        self.parents.pop(index)
+
+    def remove_parent_by_name(self, parent_name: str) -> None:
+        """removes parent at index location in list of parents"""
+        for i, parent in self.parents:
+            if parent.name == parent_name:
+                self.parents.pop(i)
+                return
+        raise IndexError(f'Could not find parent with name {parent_name} in list of parents: '
+                         f'{[p.name for p in self.parents]}')
+
+    def add_parents(self, *parent_tasks: "Task") -> None:
+        """Add multiple parent tasks"""
+        if len(parent_tasks) == 1 and isinstance(parent_tasks[0], list):
+            parent_tasks = parent_tasks[0]
+        for parent_task in parent_tasks:
+            self.add_parent(parent_task)
 
 
 class RQueue:
