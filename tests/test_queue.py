@@ -16,8 +16,17 @@ class TestQueue(unittest.TestCase):
             print('input: ', input_param)
             return input_param * 2
 
+        def my_func2(input_param: float):
+            """testing func"""
+            print('input: ', input_param)
+            return input_param * 2
+
+        my_func2_task = dq.task(my_func2)
+
         self.assertIsInstance(my_func, dq.core.TaskDecorator)
-        q = dq.Queue()
+        self.assertIsInstance(my_func2_task, dq.core.TaskDecorator)
+
+        q = dq.Queue([my_func2_task(0), my_func2_task(0)])
 
         self.assertEqual(q.__str__(), "<Empty Queue>")
         q.info()
